@@ -2,6 +2,7 @@ package com.abhijeet.employee_management_system.controller;
 
 import com.abhijeet.employee_management_system.model.Employee;
 import com.abhijeet.employee_management_system.repository.EmployeeRepository;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,7 +21,7 @@ public class EmployeeController {
     }
 
     @PostMapping
-    public Employee createEmployee(@RequestBody Employee employee) {
+    public Employee createEmployee(@Valid @RequestBody Employee employee) {
         return employeeRepository.save(employee);
     }
 
@@ -32,7 +33,7 @@ public class EmployeeController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Employee> updateEmployee(@PathVariable Long id, @RequestBody Employee employeeDetails) {
+    public ResponseEntity<Employee> updateEmployee(@PathVariable Long id, @Valid @RequestBody Employee employeeDetails) {
         return employeeRepository.findById(id).map(emp -> {
             emp.setFirstName(employeeDetails.getFirstName());
             emp.setLastName(employeeDetails.getLastName());

@@ -40,6 +40,23 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+		<dependency>
+			<!-- Spring Boot 4.x moved Jackson auto-configuration (the ObjectMapper
+			     bean, JSON message converter customization) out of the core
+			     autoconfigure module into this dedicated one. Without it, only a
+			     bare Jackson default (via Spring Framework's own fallback, not
+			     Boot's) was in effect — no customized ObjectMapper bean existed
+			     to autowire, and JSR-310/date-time module registration wasn't
+			     guaranteed. Found while writing tests; fixed at the root rather
+			     than worked around only in test code, since it affects the real
+			     running app too. -->
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-jackson</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 		<dependency>

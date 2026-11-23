@@ -1,6 +1,9 @@
 package com.abhijeet.employee_management_system.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
 
 @Entity
 @Table(name = "employees")
@@ -10,17 +13,23 @@ public class Employee {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "First name is required")
     @Column(nullable = false)
     private String firstName;
 
+    @NotBlank(message = "Last name is required")
     @Column(nullable = false)
     private String lastName;
 
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email must be a valid email address")
     @Column(nullable = false, unique = true)
     private String email;
 
     private String department;
     private String position;
+
+    @PositiveOrZero(message = "Salary cannot be negative")
     private Double salary;
 
     public Long getId() { return id; }

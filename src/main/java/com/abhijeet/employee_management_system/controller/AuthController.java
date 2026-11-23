@@ -1,8 +1,14 @@
 package com.abhijeet.employee_management_system.controller;
 
+import com.abhijeet.employee_management_system.dto.AuthRequest;
+import com.abhijeet.employee_management_system.model.User;
+import com.abhijeet.employee_management_system.repository.UserRepository;
 import com.abhijeet.employee_management_system.security.JwtUtil;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
@@ -13,15 +19,37 @@ public class AuthController {
     @Autowired
     private JwtUtil jwtUtil;
 
-    @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> credentials) {
-        String username = credentials.get("username");
-        String password = credentials.get("password");
+    @Autowired
+    private UserRepository userRepository;
 
-        if ("admin".equals(username) && "admin123".equals(password)) {
-            String token = jwtUtil.generateToken(username);
-            return ResponseEntity.ok(Map.of("token", token, "username", username));
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@Valid @RequestBody AuthRequest request) {
+        if (userRepository.existsByUsername(request.getUsername())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "Username is already taken"));
         }
-        return ResponseEntity.status(401).body(Map.of("error", "Invalid credentials"));
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        userRepository.save(user);
+
+        String token = jwtUtil.generateToken(user.getUsername());
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(Map.of("token", token, "username", user.getUsername()));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@Valid @RequestBody AuthRequest request) {
+        return userRepository.findByUsername(request.getUsername())
+            .filter(user -> passwordEncoder.matches(request.getPassword(), user.getPasswordHash()))
+            .map(user -> {
+                String token = jwtUtil.generateToken(user.getUsername());
+                return ResponseEntity.ok(Map.of("token", token, "username", user.getUsername()));
+            })
+            .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", "Invalid username or password")));
     }
 }
