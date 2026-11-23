@@ -47,17 +47,32 @@ public class SecurityConfig {
                 // request; without this, it fails authentication on ITS OWN and
                 // produces a 401 that clobbers the real 403 response.
                 .requestMatchers("/error").permitAll()
-                // Any authenticated user can view employees/departments/designations;
-                // only admins can create, modify, or delete records.
-                .requestMatchers(HttpMethod.POST, "/api/employees/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/api/employees/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/api/employees/**").hasRole("ADMIN")
+                // Any authenticated user can view employees/departments/designations.
+                // ADMIN and HR can manage employee records (typical HR duty); only
+                // ADMIN can touch Department/Designation (system configuration) or
+                // Payroll generation (financial data).
+                .requestMatchers(HttpMethod.POST, "/api/employees/**").hasAnyRole("ADMIN", "HR")
+                .requestMatchers(HttpMethod.PUT, "/api/employees/**").hasAnyRole("ADMIN", "HR")
+                .requestMatchers(HttpMethod.DELETE, "/api/employees/**").hasAnyRole("ADMIN", "HR")
                 .requestMatchers(HttpMethod.POST, "/api/departments/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/departments/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/departments/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/designations/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/designations/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/designations/**").hasRole("ADMIN")
+                // Attendance: any authenticated user can mark/view their own; only
+                // ADMIN/HR can view/manage other employees' records (enforced in
+                // the service layer, not just the URL pattern, since "my own" isn't
+                // expressible as a path-based rule).
+                .requestMatchers("/api/attendance/**").authenticated()
+                // Leave: any authenticated user can submit their own requests;
+                // approve/reject is ADMIN/HR only.
+                .requestMatchers(HttpMethod.PUT, "/api/leave-requests/*/approve").hasAnyRole("ADMIN", "HR")
+                .requestMatchers(HttpMethod.PUT, "/api/leave-requests/*/reject").hasAnyRole("ADMIN", "HR")
+                .requestMatchers("/api/leave-requests/**").authenticated()
+                .requestMatchers("/api/dashboard/**").hasAnyRole("ADMIN", "HR")
+                // Only ADMIN can list accounts or change roles (promoting to HR/ADMIN).
+                .requestMatchers("/api/users/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

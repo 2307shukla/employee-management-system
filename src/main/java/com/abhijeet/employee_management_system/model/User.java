@@ -24,6 +24,11 @@ public class User {
     @Column(nullable = false)
     private Role role = Role.EMPLOYEE;
 
+    // Links this login account to its HR record, so "my own attendance / leave
+    // requests" has something to resolve against. Nullable: bootstrap admin and
+    // accounts not yet associated with an Employee row have none.
+    private Long employeeId;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getUsername() { return username; }
@@ -34,4 +39,6 @@ public class User {
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }
+    public Long getEmployeeId() { return employeeId; }
+    public void setEmployeeId(Long employeeId) { this.employeeId = employeeId; }
 }

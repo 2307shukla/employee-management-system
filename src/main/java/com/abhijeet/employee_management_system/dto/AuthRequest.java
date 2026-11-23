@@ -13,8 +13,15 @@ public class AuthRequest {
     @Size(min = 8, message = "Password must be at least 8 characters")
     private String password;
 
+    // Optional, registration only: links the new account to an existing Employee
+    // record (e.g. "EMP-001") so "my attendance"/"my leave requests" resolve to
+    // something. Ignored on login.
+    private String employeeCode;
+
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+    public String getEmployeeCode() { return employeeCode; }
+    public void setEmployeeCode(String employeeCode) { this.employeeCode = employeeCode; }
 }
