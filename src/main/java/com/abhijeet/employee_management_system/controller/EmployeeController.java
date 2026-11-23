@@ -1,55 +1,48 @@
 package com.abhijeet.employee_management_system.controller;
 
 import com.abhijeet.employee_management_system.model.Employee;
-import com.abhijeet.employee_management_system.repository.EmployeeRepository;
+import com.abhijeet.employee_management_system.service.EmployeeService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PagedModel;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/employees")
 public class EmployeeController {
 
     @Autowired
-    private EmployeeRepository employeeRepository;
+    private EmployeeService employeeService;
 
     @GetMapping
-    public List<Employee> getAllEmployees() {
-        return employeeRepository.findAll();
+    public PagedModel<Employee> getAllEmployees(@PageableDefault(size = 20) Pageable pageable) {
+        // Spring Data warns that serializing a raw Page/PageImpl isn't a stable
+        // JSON contract across versions; PagedModel is its own recommended fix.
+        return new PagedModel<>(employeeService.getAllEmployees(pageable));
     }
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public Employee createEmployee(@Valid @RequestBody Employee employee) {
-        return employeeRepository.save(employee);
+        return employeeService.createEmployee(employee);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Employee> getEmployeeById(@PathVariable Long id) {
-        return employeeRepository.findById(id)
-            .map(ResponseEntity::ok)
-            .orElse(ResponseEntity.notFound().build());
+    public Employee getEmployeeById(@PathVariable Long id) {
+        return employeeService.getEmployeeById(id);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Employee> updateEmployee(@PathVariable Long id, @Valid @RequestBody Employee employeeDetails) {
-        return employeeRepository.findById(id).map(emp -> {
-            emp.setFirstName(employeeDetails.getFirstName());
-            emp.setLastName(employeeDetails.getLastName());
-            emp.setEmail(employeeDetails.getEmail());
-            emp.setDepartment(employeeDetails.getDepartment());
-            emp.setPosition(employeeDetails.getPosition());
-            emp.setSalary(employeeDetails.getSalary());
-            return ResponseEntity.ok(employeeRepository.save(emp));
-        }).orElse(ResponseEntity.notFound().build());
+    public Employee updateEmployee(@PathVariable Long id, @Valid @RequestBody Employee employeeDetails) {
+        return employeeService.updateEmployee(id, employeeDetails);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteEmployee(@PathVariable Long id) {
-        return employeeRepository.findById(id).map(emp -> {
-            employeeRepository.delete(emp);
-            return ResponseEntity.ok().<Void>build();
-        }).orElse(ResponseEntity.notFound().build());
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteEmployee(@PathVariable Long id) {
+        employeeService.deleteEmployee(id);
     }
 }

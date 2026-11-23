@@ -38,7 +38,7 @@ public class AuthController {
 
         String token = jwtUtil.generateToken(user.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(Map.of("token", token, "username", user.getUsername()));
+            .body(Map.of("token", token, "username", user.getUsername(), "role", user.getRole().name()));
     }
 
     @PostMapping("/login")
@@ -47,7 +47,7 @@ public class AuthController {
             .filter(user -> passwordEncoder.matches(request.getPassword(), user.getPasswordHash()))
             .map(user -> {
                 String token = jwtUtil.generateToken(user.getUsername());
-                return ResponseEntity.ok(Map.of("token", token, "username", user.getUsername()));
+                return ResponseEntity.ok(Map.of("token", token, "username", user.getUsername(), "role", user.getRole().name()));
             })
             .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("error", "Invalid username or password")));

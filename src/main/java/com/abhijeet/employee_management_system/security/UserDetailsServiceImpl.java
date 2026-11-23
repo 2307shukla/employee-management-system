@@ -3,11 +3,12 @@ package com.abhijeet.employee_management_system.security;
 import com.abhijeet.employee_management_system.model.User;
 import com.abhijeet.employee_management_system.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
-import java.util.Collections;
+import java.util.List;
 
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService {
@@ -20,6 +21,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         User user = userRepository.findByUsername(username)
             .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
         return new org.springframework.security.core.userdetails.User(
-            user.getUsername(), user.getPasswordHash(), Collections.emptyList());
+            user.getUsername(), user.getPasswordHash(),
+            List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())));
     }
 }

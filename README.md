@@ -65,25 +65,35 @@ All endpoints are under `/api`. Swagger UI is available at `/swagger-ui.html` wh
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/api/auth/register` | `{"username": "...", "password": "..."}` | `201` + `{token, username}`, or `409` if username taken |
-| POST | `/api/auth/login` | `{"username": "...", "password": "..."}` | `200` + `{token, username}`, or `401` if invalid |
+| POST | `/api/auth/register` | `{"username": "...", "password": "..."}` | `201` + `{token, username, role}`, or `409` if username taken |
+| POST | `/api/auth/login` | `{"username": "...", "password": "..."}` | `200` + `{token, username, role}`, or `401` if invalid |
 
 Validation: username 3–50 chars, password at least 8 chars. Invalid input returns `400`
-with a `fields` map of per-field error messages.
+with a `fields` map of per-field error messages. Self-registration always creates an
+`EMPLOYEE`-role account — there is no way to self-assign `ADMIN`.
 
 ### Employees — `/api/employees` (requires `Authorization: Bearer <token>`)
 
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/api/employees` | List all employees |
-| GET | `/api/employees/{id}` | `404` if not found |
-| POST | `/api/employees` | Body validated (`firstName`, `lastName`, `email` required; `salary` must be ≥ 0) |
-| PUT | `/api/employees/{id}` | Same validation as POST |
-| DELETE | `/api/employees/{id}` | `404` if not found |
+| Method | Path | Role required | Notes |
+|---|---|---|---|
+| GET | `/api/employees` | any authenticated user | Paginated: `?page=0&size=20&sort=firstName,asc` |
+| GET | `/api/employees/{id}` | any authenticated user | `404` if not found |
+| POST | `/api/employees` | `ADMIN` | Body validated (`firstName`, `lastName`, `email` required; `salary` must be ≥ 0); `403` for non-admins |
+| PUT | `/api/employees/{id}` | `ADMIN` | Same validation as POST; `404` if not found; `403` for non-admins |
+| DELETE | `/api/employees/{id}` | `ADMIN` | `204` on success, `404` if not found, `403` for non-admins |
 
-Any request without a valid JWT returns `401 Unauthorized`.
+Any request without a valid JWT returns `401 Unauthorized`. An authenticated request
+missing the required role returns `403 Forbidden`.
 
-## Authentication model
+`GET /api/employees` returns a `PagedModel`:
+```json
+{
+  "content": [ { "id": 1, "firstName": "...", ... } ],
+  "page": { "size": 20, "number": 0, "totalElements": 42, "totalPages": 3 }
+}
+```
+
+## Authentication & authorization model
 
 - Passwords are hashed with BCrypt (`PasswordEncoder`) — never stored or logged in plaintext.
 - Login/registration issue a JWT (HMAC-SHA, `jjwt` library) that must be sent as
@@ -92,6 +102,16 @@ Any request without a valid JWT returns `401 Unauthorized`.
 - There is no hardcoded username/password anywhere in the codebase; the only
   auto-created account is the first-run `admin` bootstrap described above, and even
   that uses a random (or operator-supplied) password, never a fixed one.
+- Two roles: `ADMIN` (full access) and `EMPLOYEE` (read-only on `/api/employees`).
+  The first bootstrapped account is always `ADMIN`; every self-registered account is
+  `EMPLOYEE`.
+- `/error` is explicitly `permitAll()`. This isn't a security hole: Spring's default
+  `AccessDeniedHandler` calls `response.sendError(403)`, which makes the servlet
+  container internally forward the request to `/error` as a fresh dispatch. That
+  forward re-enters this same security filter chain with an anonymous context: without
+  permitting it, that second pass fails *its own* authentication check and produces a
+  401 that silently overwrites the correct 403. Permitting `/error` just lets the
+  original status code reach the client unchanged.
 
 ## Testing
 
@@ -100,7 +120,12 @@ Any request without a valid JWT returns `401 Unauthorized`.
 ```
 
 Runs the full suite (context load + `AuthControllerTest` + `EmployeeControllerTest`)
-against an in-memory H2 database via `MockMvc`.
+against an in-memory H2 database via `MockMvc`, including role-based access checks and
+pagination.
+
+Note: `MockMvc` doesn't exercise a real servlet container, so it can't reproduce the
+`/error`-forward interaction described above — that was only caught by testing against
+a live-running instance over real HTTP, not by the test suite alone.
 
 ## CORS
 

@@ -1,5 +1,6 @@
 package com.abhijeet.employee_management_system.config;
 
+import com.abhijeet.employee_management_system.model.Role;
 import com.abhijeet.employee_management_system.model.User;
 import com.abhijeet.employee_management_system.repository.UserRepository;
 import org.slf4j.Logger;
@@ -51,6 +52,7 @@ public class AdminBootstrap implements ApplicationRunner {
         User admin = new User();
         admin.setUsername("admin");
         admin.setPasswordHash(passwordEncoder.encode(password));
+        admin.setRole(Role.ADMIN);
         userRepository.save(admin);
 
         if (generated) {

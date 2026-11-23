@@ -14,6 +14,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import java.util.List;
 
@@ -40,6 +41,17 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+                // Spring's default AccessDeniedHandler calls response.sendError(403),
+                // which makes the container do an internal forward to /error. That
+                // forward re-enters this whole filter chain as a fresh, anonymous
+                // request; without this, it fails authentication on ITS OWN and
+                // produces a 401 that clobbers the real 403 response.
+                .requestMatchers("/error").permitAll()
+                // Any authenticated user can view employees; only admins can
+                // create, modify, or delete records.
+                .requestMatchers(HttpMethod.POST, "/api/employees/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/employees/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/employees/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
