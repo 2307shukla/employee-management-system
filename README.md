@@ -57,6 +57,17 @@ than continuing to use the bootstrap admin account.
 | `DB_USERNAME` / `DB_PASSWORD` | `sa` / *(empty)* | DB credentials. |
 | `DB_DIALECT` | `org.hibernate.dialect.H2Dialect` | Hibernate dialect. |
 
+## Startup time on constrained hosts
+
+Bean creation is lazy (`spring.main.lazy-initialization=true`) to keep cold-start time
+down on small/free-tier instances, and the datasource connection pool fails fast
+(`spring.datasource.hikari.connection-timeout=10000`) instead of hanging silently if the
+database is unreachable. If a deploy's logs stop right after "Finished Spring Data
+repository scanning" with no further output before the platform's own deploy timeout
+fires, that's consistent with the app still being mid-startup when it got killed, not a
+crash — check whether the configured database is reachable and how long it takes to
+accept a first connection.
+
 ## API
 
 All endpoints are under `/api`. Swagger UI is available at `/swagger-ui.html` when running.
