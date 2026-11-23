@@ -4,28 +4,27 @@
 # and failed the whole deploy - this avoids hitting that URL at all).
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /app
-COPY pom.xml ./
-# repo.maven.apache.org occasionally rate-limits (429) or times out during
-# dependency resolution on shared CI/build infrastructure. Retry with a
-# backoff instead of failing the whole deploy on one bad request. Ends
-# with an explicit exit 1 if every attempt fails, so a real failure still
-# fails the Docker build instead of silently succeeding (the loop's last
-# command otherwise would have been "sleep", which exits 0).
+COPY pom.xml maven-settings.xml ./
+# repo.maven.apache.org has repeatedly 429 rate-limited this build (confirmed
+# directly in Render's build logs: "status code: 429, reason phrase: Too
+# Many Requests" resolving the parent POM). maven-settings.xml mirrors
+# Maven Central through Google's GCS-backed mirror instead, which serves
+# the same artifacts without that origin-server rate limit. The retry loop
+# stays as defense-in-depth for any other transient failure; it ends with
+# an explicit exit 1 if every attempt fails, so a real failure still fails
+# the Docker build instead of silently succeeding (the loop's last command
+# otherwise would have been "sleep", which exits 0).
 RUN set -e; \
     for i in 1 2 3 4 5; do \
-      mvn -B dependency:go-offline && exit 0; \
+      mvn -B -s maven-settings.xml dependency:go-offline && exit 0; \
       echo "Dependency resolution failed, retrying in 20s ($i/5)..."; \
       sleep 20; \
     done; \
     echo "Dependency resolution failed after 5 attempts"; exit 1
 COPY src ./src
-# go-offline doesn't resolve every plugin-level artifact clean package
-# needs (e.g. maven-compiler-plugin, spring-boot-maven-plugin internals),
-# so this step can still hit Maven Central directly - same retry logic
-# as above, for the same reason.
 RUN set -e; \
     for i in 1 2 3 4 5; do \
-      mvn -B clean package -DskipTests && exit 0; \
+      mvn -B -s maven-settings.xml clean package -DskipTests && exit 0; \
       echo "Build failed, retrying in 20s ($i/5)..."; \
       sleep 20; \
     done; \
