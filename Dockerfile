@@ -5,7 +5,14 @@
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml ./
-RUN mvn -B dependency:go-offline
+# repo.maven.apache.org occasionally rate-limits (429) or times out during
+# dependency resolution on shared CI/build infrastructure. Retry with a
+# backoff instead of failing the whole deploy on one bad request.
+RUN for i in 1 2 3 4 5; do \
+      mvn -B dependency:go-offline && break; \
+      echo "Dependency resolution failed, retrying in 20s ($i/5)..."; \
+      sleep 20; \
+    done
 COPY src ./src
 RUN mvn -B clean package -DskipTests
 
