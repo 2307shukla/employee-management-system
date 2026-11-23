@@ -87,7 +87,7 @@ with a `fields` map of per-field error messages. Self-registration always create
 
 | Method | Path | Role required | Notes |
 |---|---|---|---|
-| GET | `/api/employees` | any authenticated user | Paginated: `?page=0&size=20&sort=firstName,asc` |
+| GET | `/api/employees` | any authenticated user | Paginated + searchable: `?page=0&size=20&sort=firstName,asc&name=ali&departmentId=1&designationId=2&minSalary=50000&maxSalary=90000` (all search params optional, combine with AND) |
 | GET | `/api/employees/{id}` | any authenticated user | `404` if not found |
 | POST | `/api/employees` | `ADMIN` | Body validated (`firstName`, `lastName`, `email` required; `salary` must be ≥ 0); `403` for non-admins |
 | PUT | `/api/employees/{id}` | `ADMIN` | Same validation as POST; `404` if not found; `403` for non-admins |
@@ -103,6 +103,18 @@ missing the required role returns `403 Forbidden`.
   "page": { "size": 20, "number": 0, "totalElements": 42, "totalPages": 3 }
 }
 ```
+
+An employee has: `employeeCode`, `firstName`, `lastName`, `email`, `mobileNo`, `dob`,
+`gender` (`MALE`/`FEMALE`/`OTHER`), `department` (nested `Department`), `designation`
+(nested `Designation`), `status` (`ACTIVE`/`INACTIVE`, defaults to `ACTIVE`), `salary`,
+`joiningDate`. `POST`/`PUT` bodies use `departmentId`/`designationId` (plain numbers,
+not nested objects) — an unknown id returns `404`.
+
+### Departments — `/api/departments`, Designations — `/api/designations`
+
+Same shape and role rules as employees: any authenticated user can read, only `ADMIN`
+can create/update/delete. `Department` is `{id, name}`; `Designation` is `{id, title}`.
+Both names are unique.
 
 ## Authentication & authorization model
 

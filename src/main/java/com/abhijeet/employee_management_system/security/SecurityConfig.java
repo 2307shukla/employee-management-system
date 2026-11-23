@@ -47,11 +47,17 @@ public class SecurityConfig {
                 // request; without this, it fails authentication on ITS OWN and
                 // produces a 401 that clobbers the real 403 response.
                 .requestMatchers("/error").permitAll()
-                // Any authenticated user can view employees; only admins can
-                // create, modify, or delete records.
+                // Any authenticated user can view employees/departments/designations;
+                // only admins can create, modify, or delete records.
                 .requestMatchers(HttpMethod.POST, "/api/employees/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/employees/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/employees/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/departments/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/departments/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/departments/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/designations/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/designations/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/designations/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

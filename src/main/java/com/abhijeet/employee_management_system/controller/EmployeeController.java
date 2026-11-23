@@ -1,5 +1,7 @@
 package com.abhijeet.employee_management_system.controller;
 
+import com.abhijeet.employee_management_system.dto.EmployeeRequest;
+import com.abhijeet.employee_management_system.dto.EmployeeSearchCriteria;
 import com.abhijeet.employee_management_system.model.Employee;
 import com.abhijeet.employee_management_system.service.EmployeeService;
 import jakarta.validation.Valid;
@@ -18,16 +20,28 @@ public class EmployeeController {
     private EmployeeService employeeService;
 
     @GetMapping
-    public PagedModel<Employee> getAllEmployees(@PageableDefault(size = 20) Pageable pageable) {
+    public PagedModel<Employee> getAllEmployees(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) Long designationId,
+            @RequestParam(required = false) Double minSalary,
+            @RequestParam(required = false) Double maxSalary,
+            @PageableDefault(size = 20) Pageable pageable) {
+        EmployeeSearchCriteria criteria = new EmployeeSearchCriteria();
+        criteria.setName(name);
+        criteria.setDepartmentId(departmentId);
+        criteria.setDesignationId(designationId);
+        criteria.setMinSalary(minSalary);
+        criteria.setMaxSalary(maxSalary);
         // Spring Data warns that serializing a raw Page/PageImpl isn't a stable
         // JSON contract across versions; PagedModel is its own recommended fix.
-        return new PagedModel<>(employeeService.getAllEmployees(pageable));
+        return new PagedModel<>(employeeService.searchEmployees(criteria, pageable));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Employee createEmployee(@Valid @RequestBody Employee employee) {
-        return employeeService.createEmployee(employee);
+    public Employee createEmployee(@Valid @RequestBody EmployeeRequest request) {
+        return employeeService.createEmployee(request);
     }
 
     @GetMapping("/{id}")
@@ -36,8 +50,8 @@ public class EmployeeController {
     }
 
     @PutMapping("/{id}")
-    public Employee updateEmployee(@PathVariable Long id, @Valid @RequestBody Employee employeeDetails) {
-        return employeeService.updateEmployee(id, employeeDetails);
+    public Employee updateEmployee(@PathVariable Long id, @Valid @RequestBody EmployeeRequest request) {
+        return employeeService.updateEmployee(id, request);
     }
 
     @DeleteMapping("/{id}")

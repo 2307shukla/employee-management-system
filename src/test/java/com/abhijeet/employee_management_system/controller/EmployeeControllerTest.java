@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -28,6 +29,37 @@ class EmployeeControllerTest {
     // a plain unmanaged instance here avoids the Jackson-2-vs-3 mismatch.
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private Map<String, Object> minimalEmployee(String code, String first, String last, String email) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("employeeCode", code);
+        body.put("firstName", first);
+        body.put("lastName", last);
+        body.put("email", email);
+        return body;
+    }
+
+    private Long createDepartment(String name) throws Exception {
+        String response = mockMvc.perform(post("/api/departments").with(adminAuth())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("name", name))))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).get("id").asLong();
+    }
+
+    private Long createDesignation(String title) throws Exception {
+        String response = mockMvc.perform(post("/api/designations").with(adminAuth())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("title", title))))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).get("id").asLong();
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor adminAuth() {
+        return org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN");
+    }
+
     @Test
     void listEmployeesRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/employees"))
@@ -37,16 +69,22 @@ class EmployeeControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void createAndFetchEmployee() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of(
-            "firstName", "Jane", "lastName", "Doe",
-            "email", "jane.doe@example.com", "department", "Engineering",
-            "position", "Developer", "salary", 75000.0));
+        Long deptId = createDepartment("Engineering");
+        Long desigId = createDesignation("Developer");
+
+        Map<String, Object> body = minimalEmployee("EMP-001", "Jane", "Doe", "jane.doe@example.com");
+        body.put("departmentId", deptId);
+        body.put("designationId", desigId);
+        body.put("salary", 75000.0);
 
         String response = mockMvc.perform(post("/api/employees")
-                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(body)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").exists())
             .andExpect(jsonPath("$.email").value("jane.doe@example.com"))
+            .andExpect(jsonPath("$.department.name").value("Engineering"))
+            .andExpect(jsonPath("$.designation.title").value("Developer"))
+            .andExpect(jsonPath("$.status").value("ACTIVE"))
             .andReturn().getResponse().getContentAsString();
 
         Long id = objectMapper.readTree(response).get("id").asLong();
@@ -57,13 +95,22 @@ class EmployeeControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
+    void creatingEmployeeWithUnknownDepartmentReturns404() throws Exception {
+        Map<String, Object> body = minimalEmployee("EMP-002", "No", "Dept", "no.dept@example.com");
+        body.put("departmentId", 999999L);
+        mockMvc.perform(post("/api/employees")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(body)))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
     @WithMockUser(roles = "EMPLOYEE")
     void employeeRoleCanListButNotCreate() throws Exception {
         mockMvc.perform(get("/api/employees"))
             .andExpect(status().isOk());
 
-        String body = objectMapper.writeValueAsString(Map.of(
-            "firstName", "Should", "lastName", "Fail", "email", "should.fail@example.com"));
+        String body = objectMapper.writeValueAsString(minimalEmployee("EMP-003", "Should", "Fail", "should.fail@example.com"));
         mockMvc.perform(post("/api/employees")
                 .contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isForbidden());
@@ -74,8 +121,7 @@ class EmployeeControllerTest {
     void employeeRoleCannotDeleteOrUpdate() throws Exception {
         mockMvc.perform(put("/api/employees/1")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of(
-                    "firstName", "X", "lastName", "Y", "email", "x.y@example.com"))))
+                .content(objectMapper.writeValueAsString(minimalEmployee("EMP-004", "X", "Y", "x.y@example.com"))))
             .andExpect(status().isForbidden());
 
         mockMvc.perform(delete("/api/employees/1"))
@@ -85,21 +131,35 @@ class EmployeeControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void creatingEmployeeWithoutEmailFailsValidation() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of(
-            "firstName", "No", "lastName", "Email"));
+        Map<String, Object> body = new HashMap<>();
+        body.put("employeeCode", "EMP-005");
+        body.put("firstName", "No");
+        body.put("lastName", "Email");
         mockMvc.perform(post("/api/employees")
-                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(body)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.fields.email").exists());
     }
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    void creatingEmployeeWithInvalidEmailFailsValidation() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of(
-            "firstName", "Bad", "lastName", "Email", "email", "not-an-email"));
+    void creatingEmployeeWithoutEmployeeCodeFailsValidation() throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put("firstName", "No");
+        body.put("lastName", "Code");
+        body.put("email", "no.code@example.com");
         mockMvc.perform(post("/api/employees")
-                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(body)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.fields.employeeCode").exists());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void creatingEmployeeWithInvalidEmailFailsValidation() throws Exception {
+        Map<String, Object> body = minimalEmployee("EMP-006", "Bad", "Email", "not-an-email");
+        mockMvc.perform(post("/api/employees")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(body)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.fields.email").exists());
     }
@@ -107,8 +167,7 @@ class EmployeeControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void deletingAnEmployeeRemovesIt() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of(
-            "firstName", "To", "lastName", "Delete", "email", "to.delete@example.com"));
+        String body = objectMapper.writeValueAsString(minimalEmployee("EMP-007", "To", "Delete", "to.delete@example.com"));
         String response = mockMvc.perform(post("/api/employees")
                 .contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isCreated())
@@ -132,8 +191,7 @@ class EmployeeControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void updatingUnknownEmployeeReturns404() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of(
-            "firstName", "Ghost", "lastName", "Employee", "email", "ghost@example.com"));
+        String body = objectMapper.writeValueAsString(minimalEmployee("EMP-008", "Ghost", "Employee", "ghost@example.com"));
         mockMvc.perform(put("/api/employees/99999999")
                 .contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isNotFound());
@@ -143,8 +201,7 @@ class EmployeeControllerTest {
     @WithMockUser(roles = "ADMIN")
     void listIsPaginatedAndSortable() throws Exception {
         for (int i = 0; i < 3; i++) {
-            String body = objectMapper.writeValueAsString(Map.of(
-                "firstName", "Page" + i, "lastName", "Test", "email", "page" + i + "@example.com"));
+            String body = objectMapper.writeValueAsString(minimalEmployee("EMP-PAGE-" + i, "Page" + i, "Test", "page" + i + "@example.com"));
             mockMvc.perform(post("/api/employees")
                     .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated());
@@ -157,5 +214,81 @@ class EmployeeControllerTest {
             .andExpect(jsonPath("$.page.totalPages").value(2))
             .andExpect(jsonPath("$.content[0].firstName").value("Page0"))
             .andExpect(jsonPath("$.content[1].firstName").value("Page1"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void searchByNameMatchesFirstOrLastName() throws Exception {
+        mockMvc.perform(post("/api/employees").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(minimalEmployee("EMP-S1", "Alice", "Wonderland", "alice@example.com"))))
+            .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/employees").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(minimalEmployee("EMP-S2", "Bob", "Alison", "bob@example.com"))))
+            .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/employees").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(minimalEmployee("EMP-S3", "Carol", "Smith", "carol@example.com"))))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/employees?name=ali"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.page.totalElements").value(2));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void searchByDepartmentAndDesignationFiltersCorrectly() throws Exception {
+        Long engId = createDepartment("SearchEng");
+        Long salesId = createDepartment("SearchSales");
+        Long devId = createDesignation("SearchDev");
+
+        Map<String, Object> inEng = minimalEmployee("EMP-S4", "Dana", "Eng", "dana@example.com");
+        inEng.put("departmentId", engId);
+        inEng.put("designationId", devId);
+        mockMvc.perform(post("/api/employees").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(inEng)))
+            .andExpect(status().isCreated());
+
+        Map<String, Object> inSales = minimalEmployee("EMP-S5", "Evan", "Sales", "evan@example.com");
+        inSales.put("departmentId", salesId);
+        mockMvc.perform(post("/api/employees").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(inSales)))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/employees?departmentId=" + engId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.page.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].firstName").value("Dana"));
+
+        mockMvc.perform(get("/api/employees?designationId=" + devId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.page.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].firstName").value("Dana"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void searchBySalaryRangeFiltersCorrectly() throws Exception {
+        Map<String, Object> low = minimalEmployee("EMP-S6", "Low", "Pay", "low@example.com");
+        low.put("salary", 30000.0);
+        mockMvc.perform(post("/api/employees").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(low)))
+            .andExpect(status().isCreated());
+
+        Map<String, Object> mid = minimalEmployee("EMP-S7", "Mid", "Pay", "mid@example.com");
+        mid.put("salary", 60000.0);
+        mockMvc.perform(post("/api/employees").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(mid)))
+            .andExpect(status().isCreated());
+
+        Map<String, Object> high = minimalEmployee("EMP-S8", "High", "Pay", "high@example.com");
+        high.put("salary", 100000.0);
+        mockMvc.perform(post("/api/employees").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(high)))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/employees?minSalary=50000&maxSalary=90000"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.page.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].firstName").value("Mid"));
     }
 }
