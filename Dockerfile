@@ -7,14 +7,29 @@ WORKDIR /app
 COPY pom.xml ./
 # repo.maven.apache.org occasionally rate-limits (429) or times out during
 # dependency resolution on shared CI/build infrastructure. Retry with a
-# backoff instead of failing the whole deploy on one bad request.
-RUN for i in 1 2 3 4 5; do \
-      mvn -B dependency:go-offline && break; \
+# backoff instead of failing the whole deploy on one bad request. Ends
+# with an explicit exit 1 if every attempt fails, so a real failure still
+# fails the Docker build instead of silently succeeding (the loop's last
+# command otherwise would have been "sleep", which exits 0).
+RUN set -e; \
+    for i in 1 2 3 4 5; do \
+      mvn -B dependency:go-offline && exit 0; \
       echo "Dependency resolution failed, retrying in 20s ($i/5)..."; \
       sleep 20; \
-    done
+    done; \
+    echo "Dependency resolution failed after 5 attempts"; exit 1
 COPY src ./src
-RUN mvn -B clean package -DskipTests
+# go-offline doesn't resolve every plugin-level artifact clean package
+# needs (e.g. maven-compiler-plugin, spring-boot-maven-plugin internals),
+# so this step can still hit Maven Central directly - same retry logic
+# as above, for the same reason.
+RUN set -e; \
+    for i in 1 2 3 4 5; do \
+      mvn -B clean package -DskipTests && exit 0; \
+      echo "Build failed, retrying in 20s ($i/5)..."; \
+      sleep 20; \
+    done; \
+    echo "Build failed after 5 attempts"; exit 1
 
 # Runtime stage: slim JRE only, just the built jar - smaller image, no
 # build tools shipped to production.
