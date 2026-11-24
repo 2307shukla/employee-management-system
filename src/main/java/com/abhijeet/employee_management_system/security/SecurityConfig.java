@@ -1,6 +1,7 @@
 package com.abhijeet.employee_management_system.security;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -25,12 +26,25 @@ public class SecurityConfig {
     @Autowired
     private JwtAuthFilter jwtAuthFilter;
 
+    // The H2 console is only reachable when explicitly enabled (dev profile).
+    @Value("${spring.h2.console.enabled:false}")
+    private boolean h2ConsoleEnabled;
+
+    // Browser origins allowed to call the API (CORS_ALLOWED_ORIGINS, comma-separated).
+    @Value("${cors.allowed-origins}")
+    private String[] allowedOrigins;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
-            .headers(headers -> headers.frameOptions(frame -> frame.disable()))
+            // Clickjacking protection stays on (DENY) except for the dev-only H2 console.
+            .headers(headers -> {
+                if (h2ConsoleEnabled) {
+                    headers.frameOptions(frame -> frame.sameOrigin());
+                }
+            })
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             // Without this, Spring Security treats an unauthenticated request as
             // "anonymously authenticated" and returns 403 (Forbidden) instead of the
@@ -39,7 +53,9 @@ public class SecurityConfig {
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/h2-console/**").permitAll()
+                .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                .requestMatchers(request -> h2ConsoleEnabled
+                    && request.getRequestURI().startsWith("/h2-console")).permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                 // Spring's default AccessDeniedHandler calls response.sendError(403),
                 // which makes the container do an internal forward to /error. That
@@ -84,10 +100,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         // Wildcard ("*") origins and allowCredentials(true) cannot be combined per the
         // CORS spec (the browser rejects it); list exact allowed origins instead.
-        config.setAllowedOriginPatterns(List.of(
-            "https://ems-frontend-88e9.onrender.com",
-            "http://localhost:3000"
-        ));
+        config.setAllowedOriginPatterns(List.of(allowedOrigins));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

@@ -33,7 +33,14 @@ RUN set -e; \
 # Runtime stage: slim JRE only, just the built jar - smaller image, no
 # build tools shipped to production.
 FROM eclipse-temurin:21-jre-alpine
+# Run as an unprivileged user, not root.
+RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build /app/target/employee-management-system-0.0.1-SNAPSHOT.jar app.jar
+USER app
+ENV PORT=8081 \
+    JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
 EXPOSE 8081
-ENTRYPOINT ["java","-jar","app.jar"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+  CMD wget -qO- "http://localhost:${PORT}/actuator/health" >/dev/null || exit 1
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

@@ -8,7 +8,7 @@ backed by a real user database (not hardcoded credentials).
 - Java 21, Spring Boot 4.1.2
 - Spring Security (JWT, stateless sessions, BCrypt password hashing)
 - Spring Data JPA + Hibernate
-- H2 (default, in-memory) or PostgreSQL (via `DATABASE_URL` + driver/dialect overrides)
+- H2 (default, in-memory, dev only) or PostgreSQL (via `DATABASE_URL` + driver/dialect overrides)
 - springdoc-openapi (Swagger UI)
 
 ## Running locally
@@ -56,6 +56,20 @@ than continuing to use the bootstrap admin account.
 | `DB_DRIVER` | `org.h2.Driver` | JDBC driver class. |
 | `DB_USERNAME` / `DB_PASSWORD` | `sa` / *(empty)* | DB credentials. |
 | `DB_DIALECT` | `org.hibernate.dialect.H2Dialect` | Hibernate dialect. |
+| `CORS_ALLOWED_ORIGINS` | the deployed frontend and `http://localhost:3000` | Comma-separated browser origins allowed to call the API. |
+| `LAZY_INIT` | `true` | Lazy bean creation (faster cold start). Set `false` to fail fast on startup errors. |
+| `SPRING_PROFILES_ACTIVE` | *(none)* | `dev` enables the H2 console and SQL logging. Never set in production. |
+
+## Production deployment
+
+- **Database:** the default H2 database is in-memory and loses all data on restart. Set `DATABASE_URL` (`jdbc:postgresql://host:5432/db`), `DB_DRIVER=org.postgresql.Driver`, `DB_DIALECT=org.hibernate.dialect.PostgreSQLDialect`, `DB_USERNAME` and `DB_PASSWORD`.
+- **Secrets:** `JWT_SECRET` and `ADMIN_DEFAULT_PASSWORD` live only in the platform's environment settings. Generate the secret with `openssl rand -base64 48`; changing it logs everyone out.
+- **Health check:** point the platform's health check at `/actuator/health` (public, no details exposed).
+- **CORS:** set `CORS_ALLOWED_ORIGINS` to the exact frontend origin(s). Nothing else can call the API from a browser.
+- **Container:** multi-stage image running as a non-root user, with a `HEALTHCHECK` and container-aware JVM memory settings (`JAVA_OPTS` to override).
+- **Hardening:** the H2 console is off outside the `dev` profile, clickjacking protection is on, SQL logging is off, and `X-Forwarded-*` headers are honoured behind the platform proxy.
+- **CI:** every push runs `mvn verify` and builds the Docker image.
+- **Next step for real data:** schema is managed by Hibernate `update`; add Flyway migrations before storing anything you cannot recreate.
 
 ## Startup time on constrained hosts
 
