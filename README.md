@@ -3,6 +3,14 @@
 A Spring Boot REST API for managing employee records, with JWT-based authentication
 backed by a real user database (not hardcoded credentials).
 
+## At a glance
+
+- Create, view, update and delete employee records through a REST API.
+- Sign-in with tokens; passwords are stored hashed and there are no built-in default logins.
+- Role-based access: read-only employees and administrators.
+- Built with Java, Spring Boot and Spring Security, on PostgreSQL (in-memory database for local use).
+- Has a companion React app: [ems-frontend](https://github.com/2307shukla/ems-frontend).
+
 ## Tech stack
 
 - Java 21, Spring Boot 4.1.2
