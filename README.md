@@ -3,6 +3,9 @@
 A Spring Boot REST API for managing employee records, with JWT-based authentication
 backed by a real user database (not hardcoded credentials).
 
+**Live app:** https://ems-frontend-88e9.onrender.com &nbsp;·&nbsp; **API docs:** https://employee-management-system-bwvw.onrender.com/swagger-ui.html
+(Free hosting: the first request after a quiet spell can take up to a minute.)
+
 ## At a glance
 
 - Create, view, update and delete employee records through a REST API.
